@@ -1,27 +1,33 @@
-// const { io } = require("../index");
+const { comprobarJwt } = require("../helpers/jwt");
+const { io } = require("../index");
+const {
+  usuarioConectado,
+  usuarioDesconectado,
+  guardarMensaje,
+} = require("../controllers/socket");
 
-// //mensajes de sockets
-// io.on("connection", (client) => {
-//   console.log("cliente conectado");
-//   client.on("disconnect", () => {
-//     console.log("cliente desconectado");
-//   });
-//   client.on("mensaje", (payload) => {
-//     console.log("Mensaje!!", payload);
-//     io.emit("mensaje", { admin: "Nuevo mensaje" });
-//   });
-//   client.on("vote-band", (payload) => {
-//     bands.voteBand(payload.id);
-//     io.emit("active-bands", bands.getBands());
-//   });
-//   client.on("add-band", (payload) => {
-//     const newBand = new Band(payload.name);
-//     bands.addBand(newBand);
-//     io.emit("active-bands", bands.getBands());
-//   });
-//   client.on("delete-band", (payload) => {
-//     bands.deleteBand(payload.id);
-//     io.emit("active-bands", bands.getBands());
-//   });
-//   client.emit("active-bands", bands.getBands());
-// });
+//mensajes de sockets
+io.on("connection", (client) => {
+  const token = client.handshake.headers["x-token"];
+  const [valido, uid] = comprobarJwt(token);
+
+  //verificar autenticacion
+  if (!valido) {
+    return client.disconnect();
+  }
+  //cliente autenticado
+  usuarioConectado(uid);
+  //conectar al usuario a una sala especifica
+  //sala global (io.emit)
+  //mensaje privado client.id pero lo vamos a unir a una sala
+  client.join(uid);
+  // escuchar del cliente el 'mensaje-personal'
+  client.on("mensaje-personal", async(payload) => {
+    await guardarMensaje(payload)
+    io.to(payload.para).emit("mensaje-personal", payload);
+  });
+
+  client.on("disconnect", () => {
+    usuarioDesconectado(uid);   
+  });
+});
